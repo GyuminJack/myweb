@@ -1,0 +1,65 @@
+{
+  "name": "my-personal-home",
+  "version": "2.0.0",
+  "description": "개인용 웹 기반 홈 화면 대시보드",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "build": "npm run build:css && npm run build:js",
+    "build:css": "node scripts/build-css.js",
+    "build:js": "node scripts/build-js.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint js/**/*.js server.js",
+    "lint:fix": "eslint js/**/*.js server.js --fix",
+    "format": "prettier --write \"**/*.{js,html,css,md}\"",
+    "setup": "node scripts/setup.js",
+    "backup": "node scripts/backup.js",
+    "restore": "node scripts/restore.js",
+    "docker:build": "docker build -t myweb:latest .",
+    "docker:run": "docker run -d -p 3456:3456 --name personal-home myweb:latest",
+    "docker:stop": "docker stop personal-home && docker rm personal-home",
+    "docker:restart": "npm run docker:stop && npm run docker:run",
+    "docker:logs": "docker logs -f personal-home",
+    "docker:exec": "docker exec -it personal-home sh",
+    "docker:compose:up": "docker-compose up -d",
+    "docker:compose:down": "docker-compose down",
+    "docker:compose:restart": "docker-compose restart",
+    "docker:compose:logs": "docker-compose logs -f",
+    "docker:clean": "docker system prune -af && docker volume prune -f"
+  },
+  "keywords": [
+    "dashboard",
+    "personal",
+    "homepage",
+    "bookmark",
+    "productivity"
+  ],
+  "author": "User",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "chokidar": "^3.5.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "eslint": "^8.45.0",
+    "prettier": "^3.0.0",
+    "jest": "^29.6.1",
+    "supertest": "^6.3.3"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/username/my-personal-home.git"
+  },
+  "bugs": {
+    "url": "https://github.com/username/my-personal-home/issues"
+  },
+  "homepage": "https://github.com/username/my-personal-home#readme"
+}

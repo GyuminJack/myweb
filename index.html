@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Personal Home</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- 메인 가로 레이아웃 -->
+        <div class="main-layout">
+            <!-- 왼쪽 사이드바 -->
+            <aside class="sidebar">
+                <!-- 시간 섹션 -->
+                <section class="time-section" id="timeSection">
+                    <div class="current-time" id="currentTime"></div>
+                    <div class="current-date" id="currentDate"></div>
+                    <small class="time-hint">클릭해서 KST/UTC 전환</small>
+                </section>
+
+                <!-- 북마크 가져오기 섹션 -->
+                <section class="import-section">
+                    <div class="import-header">
+                        <h3><i class="fas fa-file-import"></i> 크롬 북마크 가져오기</h3>
+                    </div>
+                    <div class="import-buttons">
+                        <button id="importBookmarksFile" class="import-btn primary">
+                            <i class="fas fa-file-upload"></i>
+                            <span>북마크 파일 선택</span>
+                        </button>
+                        <button id="showChromeGuide" class="import-btn guide">
+                            <i class="fas fa-question-circle"></i>
+                            <span>크롬에서 내보내기</span>
+                        </button>
+                    </div>
+                    <p class="import-info">크롬 → 북마크 → 북마크 관리자 → ⋮ → 북마크 내보내기</p>
+                </section>
+
+                <!-- 메모 섹션 -->
+                <section class="memo-section">
+                    <div class="memo-header">
+                        <h3><i class="fas fa-sticky-note"></i> 메모</h3>
+                        <button id="addMemo" class="add-memo-btn" title="새 메모 추가">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                    <div class="memo-container" id="memoContainer">
+                        <!-- 메모 카드들이 여기에 동적으로 생성됩니다 -->
+                    </div>
+                </section>
+            </aside>
+
+            <!-- 오른쪽 메인 컨텐츠 -->
+            <main class="main-content">
+                <!-- 헤더 -->
+                <header class="page-header">
+                    <div class="title-section">
+                        <h1>My Personal Home</h1>
+                        <p>Welcome back!</p>
+                    </div>
+                    <div class="search-section">
+                        <input type="text" id="searchInput" placeholder="링크 검색... (Ctrl+K)" class="search-input">
+                    </div>
+                </header>
+
+                <!-- 태그 필터 섹션 -->
+                <section class="filter-section">
+                    <div class="tag-filters" id="tagFilters">
+                        <button class="tag-filter active" data-tag="all">전체</button>
+                    </div>
+                </section>
+
+                <!-- 링크 카드 섹션 -->
+                <section class="links-section">
+                    <div class="links-container" id="linksContainer">
+                        <!-- 링크 카드들이 여기에 동적으로 생성됩니다 -->
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <!-- 설정 버튼 -->
+        <div class="settings-btn" id="settingsBtn">
+            <i class="fas fa-cog"></i>
+        </div>
+
+        <!-- 설정 모달 -->
+        <div class="modal" id="settingsModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>설정</h3>
+                    <span class="close" id="closeModal">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div class="config-section">
+                        <h4>RC 파일 경로</h4>
+                        <input type="text" id="rcFilePath" value="~/.myweb.rc" placeholder="RC 파일 경로를 입력하세요">
+                        <button id="loadRcFile" class="load-btn">파일 로드</button>
+                    </div>
+
+
+                    <div class="config-section">
+                        <h4>➕ 수동 링크 추가</h4>
+                        <input type="text" id="linkName" placeholder="링크 이름">
+                        <input type="text" id="linkUrl" placeholder="URL">
+                        <input type="text" id="linkTags" placeholder="태그 (쉼표로 구분)">
+                        <button id="addLink" class="add-btn">추가</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
