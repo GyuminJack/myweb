@@ -7,7 +7,7 @@ export class TimeManager {
         this.timeElement = null;
         this.dateElement = null;
         this.intervalId = null;
-        this.showUTC = false; // KST가 기본
+        this.showUTC = false; // deprecated toggle, 항상 둘 다 표시
     }
 
     init(timeElementId, dateElementId) {
@@ -24,55 +24,32 @@ export class TimeManager {
 
         updateTime() {
         const now = new Date();
-        let displayTime, timeZone, timeString, dateString;
+        const kstTime = now.toLocaleTimeString('ko-KR', {
+            hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Seoul'
+        });
+        const kstDate = now.toLocaleDateString('ko-KR', {
+            year: 'numeric', month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Seoul'
+        });
 
-        if (this.showUTC) {
-            // UTC 시간 표시
-            displayTime = now;
-            timeZone = 'UTC';
-
-            timeString = displayTime.toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: false,
-                timeZone: 'UTC'
-            });
-
-            dateString = displayTime.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                weekday: 'long',
-                timeZone: 'UTC'
-            });
-        } else {
-            // KST 시간 표시
-            displayTime = now;
-            timeZone = 'KST';
-
-            timeString = displayTime.toLocaleTimeString('ko-KR', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: false,
-                timeZone: 'Asia/Seoul'
-            });
-
-            dateString = displayTime.toLocaleDateString('ko-KR', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                weekday: 'long',
-                timeZone: 'Asia/Seoul'
-            });
-        }
+        const utcTime = now.toLocaleTimeString('en-US', {
+            hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'UTC'
+        });
+        const utcDate = now.toLocaleDateString('en-US', {
+            year: 'numeric', month: 'long', day: 'numeric', weekday: 'long', timeZone: 'UTC'
+        });
 
         this.timeElement.innerHTML = `
-            ${timeString}
-            <small class="timezone-label">${timeZone}</small>
+            <div class="time-dual">
+                <div class="time-row"><span class="tz">KST</span> <span class="t">${kstTime}</span></div>
+                <div class="time-row"><span class="tz">UTC</span> <span class="t">${utcTime}</span></div>
+            </div>
         `;
-        this.dateElement.textContent = dateString;
+        this.dateElement.innerHTML = `
+            <div class="date-dual">
+                <div class="date-row">${kstDate}</div>
+                <div class="date-row">${utcDate}</div>
+            </div>
+        `;
     }
 
     startTimer() {
@@ -86,20 +63,15 @@ export class TimeManager {
         }
     }
 
-    /**
-     * 시간대 토글 (KST ↔ UTC)
-     */
-    toggleTimezone() {
-        this.showUTC = !this.showUTC;
-        this.updateTime();
-    }
+    // 토글 제거: 항상 두 개를 동시에 표시
+    toggleTimezone() {}
 
     /**
      * 현재 시간대 반환
      * @returns {string} 현재 시간대
      */
     getCurrentTimezone() {
-        return this.showUTC ? 'UTC' : 'KST';
+        return 'KST & UTC';
     }
 
     /**
@@ -107,8 +79,7 @@ export class TimeManager {
      * @param {boolean} useUTC - UTC 사용 여부
      */
     setTimezone(useUTC) {
-        this.showUTC = useUTC;
-        this.updateTime();
+        // no-op: 항상 두 개 모두 표시
     }
 
     destroy() {

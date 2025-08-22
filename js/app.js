@@ -33,11 +33,45 @@ class PersonalHomeApp {
 
                     // 모듈 초기화
         this.timeManager.init('currentTime', 'currentDate');
-        this.memoManager.init('memoContainer', 'addMemo');
+        this.memoManager.init('memoContainer', 'addMemo', { serverMode: this.isServerMode, serverUrl: this.serverUrl });
         this.linkManager.init('linksContainer');
 
         // 전역 참조 설정
         window.memoManager = this.memoManager;
+        window.editLink = (id) => this.linkManager.openEdit(id);
+        window.cancelLinkEdit = (id) => this.linkManager.cancelEdit(id);
+        window.saveLinkEdit = async (id) => {
+            const card = document.querySelector(`.link-card[data-id="${id}"]`);
+            if (!card) return;
+            const name = card.querySelector('.edit-name')?.value || '';
+            const url = card.querySelector('.edit-url')?.value || '';
+            const tags = card.querySelector('.edit-tags')?.value || '';
+            const description = card.querySelector('.edit-description')?.value || '';
+
+            this.linkManager.applyEdit(id, { name, url, tags, description });
+            this.render();
+
+            // 서버 모드면 RC 파일에 즉시 반영
+            if (this.isServerMode) {
+                try {
+                    const lines = this.linkManager.links.map(l => {
+                        const safeName = String(l.name || '').replace(/,/g, ' ').trim();
+                        const flatTags = Array.isArray(l.tags) ? l.tags.filter(t => !t.includes(' > ')) : [];
+                        return [safeName, l.url, ...flatTags].join(',');
+                    });
+                    const content = lines.join('\n') + (lines.length ? '\n' : '');
+                    await fetch('/api/rc', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content })
+                    });
+                } catch (e) {
+                    console.warn('RC 파일 업데이트 실패:', e);
+                }
+            }
+
+            this.showSuccess('링크가 수정되었습니다');
+        };
 
             // 이벤트 리스너 설정
             this.setupEventListeners();
@@ -110,8 +144,7 @@ class PersonalHomeApp {
         document.getElementById('importBookmarksFile')?.addEventListener('click', () => this.importBookmarksFromFile());
         document.getElementById('showChromeGuide')?.addEventListener('click', () => this.showChromeGuide());
 
-        // 시간 클릭으로 타임존 전환
-        document.getElementById('timeSection')?.addEventListener('click', () => this.toggleTimezone());
+        // 시간 클릭 전환 제거 (KST/UTC 동시 표시)
 
         // 데이터 내보내기/가져오기
         document.getElementById('exportData')?.addEventListener('click', () => this.exportData());

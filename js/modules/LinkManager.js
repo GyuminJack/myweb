@@ -238,12 +238,17 @@ export class LinkManager {
             </div>` : '';
 
         card.innerHTML = `
-            <button class="delete-btn" onclick="deleteLink('${link.id}')">
-                <i class="fas fa-times"></i>
-            </button>
             <div class="link-header">
                 <img src="${faviconUrl}" alt="${link.name}" class="link-favicon" onerror="this.style.display='none'">
                 <h4>${link.name}</h4>
+                <div class="link-actions">
+                    <button class="card-edit-btn" onclick="editLink('${link.id}')" title="수정">
+                        <i class="fas fa-pen"></i>
+                    </button>
+                    <button class="card-delete-btn" onclick="deleteLink('${link.id}')" title="삭제">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
             </div>
             <a href="${link.url}" target="_blank" rel="noopener noreferrer" onclick="trackClick('${link.id}')">${link.url}</a>
             ${link.description ? `<p class="link-description">${link.description}</p>` : ''}
@@ -252,6 +257,78 @@ export class LinkManager {
         `;
 
         return card;
+    }
+
+    /**
+     * 링크 편집 UI 열기 (카드 내부에 인라인 폼)
+     * @param {string} id
+     */
+    openEdit(id) {
+        const link = this.links.find(l => l.id === id);
+        if (!link) return;
+        const card = this.container.querySelector(`.link-card[data-id="${id}"]`);
+        if (!card) return;
+        if (!card.dataset.originalHtml) {
+            card.dataset.originalHtml = card.innerHTML;
+        }
+
+        const tagsString = Array.isArray(link.tags) ? link.tags.join(', ') : '';
+        const faviconUrl = link.favicon || `https://www.google.com/s2/favicons?domain=${new URL(link.url).hostname}&sz=32`;
+
+        card.innerHTML = `
+            <div class="link-edit-form">
+                <div class="form-row">
+                    <img src="${faviconUrl}" class="link-favicon" onerror="this.style.display='none'">
+                    <input type="text" class="edit-name" placeholder="이름" value="${link.name || ''}">
+                </div>
+                <div class="form-row">
+                    <input type="text" class="edit-url" placeholder="URL" value="${link.url || ''}">
+                </div>
+                <div class="form-row">
+                    <input type="text" class="edit-tags" placeholder="태그 (쉼표로 구분)" value="${tagsString}">
+                </div>
+                <div class="form-row">
+                    <textarea class="edit-description" placeholder="설명">${link.description || ''}</textarea>
+                </div>
+                <div class="form-actions">
+                    <button class="save-btn" onclick="saveLinkEdit('${id}')"><i class="fas fa-check"></i> 저장</button>
+                    <button class="cancel-btn" onclick="cancelLinkEdit('${id}')"><i class="fas fa-times"></i> 취소</button>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * 편집 취소: 원래 카드 복원
+     */
+    cancelEdit(id) {
+        const card = this.container.querySelector(`.link-card[data-id="${id}"]`);
+        if (card && card.dataset.originalHtml) {
+            card.innerHTML = card.dataset.originalHtml;
+            delete card.dataset.originalHtml;
+        } else {
+            // 폴백: 전체 리렌더
+            this.render();
+        }
+    }
+
+    /**
+     * 편집 내용 적용
+     * @param {string} id
+     * @param {{name:string,url:string,tags:string,description:string}} fields
+     */
+    applyEdit(id, fields) {
+        const updates = {
+            name: (fields.name || '').trim(),
+            url: (fields.url || '').trim(),
+            tags: (fields.tags || '')
+                .split(',')
+                .map(t => t.trim())
+                .filter(Boolean),
+            description: (fields.description || '').trim()
+        };
+        this.updateLink(id, updates);
+        return true;
     }
 
     /**

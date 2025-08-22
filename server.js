@@ -32,6 +32,32 @@ let currentRcPath = getDefaultRcPath();
 let watcher = null;
 
 /**
+ * 파일이 없으면 생성 (초기 내용 옵션)
+ * @param {string} filePath
+ * @param {string} [initialContent]
+ */
+async function ensureFileExists(filePath, initialContent = '') {
+    try {
+        await fs.access(filePath);
+    } catch {
+        const dir = path.dirname(filePath);
+        await fs.mkdir(dir, { recursive: true });
+        await fs.writeFile(filePath, initialContent, 'utf-8');
+        console.log(`📄 파일 생성: ${filePath}`);
+    }
+}
+
+/**
+ * 메모 파일 경로 반환 (환경변수 우선, 아니면 RC 파일과 같은 폴더)
+ */
+function getMemoFilePath() {
+    const envPath = process.env.MEMO_PATH;
+    if (envPath) return envPath;
+    const baseDir = path.dirname(currentRcPath);
+    return path.join(baseDir, '.myweb.memos.json');
+}
+
+/**
  * RC 파일 파싱
  * @param {string} content - RC 파일 내용
  * @returns {Array} 파싱된 링크 배열
@@ -141,16 +167,8 @@ app.get('/api/rc', async (req, res) => {
     try {
         const filePath = req.query.path || currentRcPath;
 
-        // 파일 존재 확인
-        try {
-            await fs.access(filePath);
-        } catch {
-            return res.status(404).json({
-                error: 'RC 파일을 찾을 수 없습니다',
-                path: filePath,
-                suggestion: '파일을 생성하거나 경로를 확인해주세요'
-            });
-        }
+        // 파일 없으면 생성 (빈 파일)
+        await ensureFileExists(filePath, '');
 
         const content = await fs.readFile(filePath, 'utf-8');
         const links = parseRcFile(content);
@@ -293,6 +311,7 @@ app.post('/api/rc/path', async (req, res) => {
         currentRcPath = expandedPath;
 
         // 새 경로 감시 시작
+        await ensureFileExists(currentRcPath, '');
         startWatching(currentRcPath);
 
         res.json({
@@ -391,6 +410,45 @@ async function getSystemBookmarks() {
 }
 
 /**
+ * 메모: 파일에서 로드
+ */
+app.get('/api/memos', async (req, res) => {
+    try {
+        const memoPath = getMemoFilePath();
+        await ensureFileExists(memoPath, JSON.stringify({ memos: [] }, null, 2));
+        const raw = await fs.readFile(memoPath, 'utf-8');
+        let json;
+        try {
+            json = JSON.parse(raw || '{}');
+        } catch {
+            json = { memos: [] };
+        }
+        if (!Array.isArray(json.memos)) json.memos = [];
+        res.json({ success: true, path: memoPath, memos: json.memos });
+    } catch (error) {
+        console.error('메모 로드 오류:', error);
+        res.status(500).json({ error: '메모를 불러오는 중 오류가 발생했습니다', details: error.message });
+    }
+});
+
+/**
+ * 메모: 파일에 저장 (전체 덮어쓰기)
+ */
+app.post('/api/memos', async (req, res) => {
+    try {
+        const { memos = [] } = req.body || {};
+        const memoPath = getMemoFilePath();
+        const dir = path.dirname(memoPath);
+        await fs.mkdir(dir, { recursive: true });
+        await fs.writeFile(memoPath, JSON.stringify({ memos }, null, 2), 'utf-8');
+        res.json({ success: true, path: memoPath, count: Array.isArray(memos) ? memos.length : 0 });
+    } catch (error) {
+        console.error('메모 저장 오류:', error);
+        res.status(500).json({ error: '메모 저장 중 오류가 발생했습니다', details: error.message });
+    }
+});
+
+/**
  * Chrome 북마크 파싱
  * @param {object} chromeData - Chrome 북마크 데이터
  * @returns {Array} 파싱된 북마크
@@ -461,7 +519,7 @@ app.listen(PORT, HOST, () => {
     console.log(`🐳 Docker 환경: ${process.env.NODE_ENV === 'production' ? 'Production' : 'Development'}`);
 
     // RC 파일 감시 시작
-    startWatching(currentRcPath);
+    ensureFileExists(currentRcPath, '').then(() => startWatching(currentRcPath));
 });
 
 // 종료 시 정리

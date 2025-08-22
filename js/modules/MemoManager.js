@@ -9,6 +9,8 @@ export class MemoManager {
         this.memoContainer = null;
         this.addMemoButton = null;
         this.currentEditingId = null;
+        this.serverMode = false;
+        this.serverUrl = '';
     }
 
     /**
@@ -16,13 +18,16 @@ export class MemoManager {
      * @param {string} memoContainerId - 메모 컨테이너 ID
      * @param {string} addMemoButtonId - 메모 추가 버튼 ID
      */
-    init(memoContainerId, addMemoButtonId) {
+    init(memoContainerId, addMemoButtonId, options = {}) {
         this.memoContainer = document.getElementById(memoContainerId);
         this.addMemoButton = document.getElementById(addMemoButtonId);
 
         if (!this.memoContainer || !this.addMemoButton) {
             throw new Error('Memo elements not found');
         }
+
+        this.serverMode = !!options.serverMode;
+        this.serverUrl = options.serverUrl || window.location.origin;
 
         this.loadMemos();
         this.setupEventListeners();
@@ -47,18 +52,49 @@ export class MemoManager {
     /**
      * 메모 목록 로드
      */
-    loadMemos() {
-        this.memos = this.storage.load('memos', []);
+    async loadMemos() {
+        if (this.serverMode) {
+            try {
+                const res = await fetch(`${this.serverUrl}/api/memos`);
+                const data = await res.json();
+                if (data && data.success && Array.isArray(data.memos)) {
+                    this.memos = data.memos;
+                } else {
+                    this.memos = [];
+                }
+            } catch (e) {
+                console.warn('서버에서 메모 로드 실패, 로컬 스토리지로 폴백:', e);
+                this.memos = this.storage.load('memos', []);
+            }
+        } else {
+            this.memos = this.storage.load('memos', []);
+        }
 
         // 날짜순 정렬 (최신순)
         this.memos.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+
+        // 초기 렌더 갱신
+        if (this.memoContainer) {
+            this.render();
+        }
     }
 
     /**
      * 메모 목록 저장
      */
-    saveMemos() {
+    async saveMemos() {
         this.storage.save('memos', this.memos);
+        if (this.serverMode) {
+            try {
+                await fetch(`${this.serverUrl}/api/memos`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ memos: this.memos })
+                });
+            } catch (e) {
+                console.warn('서버에 메모 저장 실패:', e);
+            }
+        }
     }
 
     /**
