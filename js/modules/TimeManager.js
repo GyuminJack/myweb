@@ -39,17 +39,18 @@ export class TimeManager {
         });
 
         this.timeElement.innerHTML = `
-            <div class="time-dual">
-                <div class="time-row"><span class="tz">KST</span> <span class="t">${kstTime}</span></div>
-                <div class="time-row"><span class="tz">UTC</span> <span class="t">${utcTime}</span></div>
+            <div class="tz-dual">
+                <div class="tz-block">
+                    <div class="tz-row"><span class="tz">KST</span> <span class="t">${kstTime}</span></div>
+                    <div class="tz-date">${kstDate}</div>
+                </div>
+                <div class="tz-block">
+                    <div class="tz-row"><span class="tz">UTC</span> <span class="t">${utcTime}</span></div>
+                    <div class="tz-date">${utcDate}</div>
+                </div>
             </div>
         `;
-        this.dateElement.innerHTML = `
-            <div class="date-dual">
-                <div class="date-row">${kstDate}</div>
-                <div class="date-row">${utcDate}</div>
-            </div>
-        `;
+        this.dateElement.innerHTML = '';
     }
 
     startTimer() {

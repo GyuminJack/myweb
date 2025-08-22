@@ -103,10 +103,10 @@ body {
 }
 
 .current-time {
-    font-size: 2.5rem;
-    font-weight: 700;
+    font-size: 1rem;
+    font-weight: 500;
     margin-bottom: var(--spacing-sm);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -114,11 +114,12 @@ body {
 }
 
 /* Dual timezone blocks */
-.time-dual { display: grid; gap: 2px; width: 100%; }
-.time-row { display: flex; justify-content: space-between; width: 100%; font-variant-numeric: tabular-nums; }
-.time-row .tz { opacity: 0.9; min-width: 42px; display: inline-block; font-weight: 600; }
-.date-dual { display: grid; gap: 2px; font-size: 0.9rem; opacity: 0.95; }
-.date-row { }
+.tz-dual { display: grid; gap: 6px; width: 100%; }
+.tz-block { display: grid; gap: 2px; padding: 6px 8px; background: rgba(255,255,255,0.12); border-radius: var(--radius-lg); }
+.tz-row { display: flex; justify-content: space-between; width: 100%; font-variant-numeric: tabular-nums; align-items: baseline; }
+.tz-row .tz { opacity: 0.85; min-width: 40px; display: inline-block; font-weight: 500; letter-spacing: 0.4px; font-size: 0.9rem; }
+.tz-row .t { font-size: 1.35rem; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; }
+.tz-date { font-size: 0.85rem; opacity: 0.8; font-weight: 500; }
 
 .timezone-label {
     font-size: 0.75rem;
@@ -135,6 +136,7 @@ body {
     font-weight: 500;
     margin-bottom: var(--spacing-xs);
 }
+.current-date:empty { display: none; }
 
 .time-hint {
     font-size: 0.75rem;
