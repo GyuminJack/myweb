@@ -7,6 +7,7 @@ import { StorageManager } from './modules/StorageManager.js';
 import { LinkManager } from './modules/LinkManager.js';
 import { MemoManager } from './modules/MemoManager.js';
 import { BookmarkImporter } from './modules/BookmarkImporter.js';
+import { ReadListManager } from './modules/ReadListManager.js';
 
 class PersonalHomeApp {
     constructor() {
@@ -15,6 +16,7 @@ class PersonalHomeApp {
         this.linkManager = new LinkManager(this.storageManager);
         this.memoManager = new MemoManager(this.storageManager);
         this.bookmarkImporter = new BookmarkImporter(this.linkManager, { includeSpecialFolders: false });
+        this.readListManager = new ReadListManager(this.storageManager);
 
         this.currentTheme = 'default';
         this.isServerMode = false;
@@ -34,11 +36,14 @@ class PersonalHomeApp {
                     // 모듈 초기화
         this.timeManager.init('currentTime', 'currentDate');
         this.memoManager.init('memoContainer', 'addMemo', { serverMode: this.isServerMode, serverUrl: this.serverUrl });
+        this.readListManager = new ReadListManager(this.storageManager, { serverMode: this.isServerMode, serverUrl: this.serverUrl });
+        this.readListManager.init('readListContainer');
         this.linkManager.init('linksContainer');
 
         // 전역 참조 설정
         window.memoManager = this.memoManager;
         window.editLink = (id) => this.linkManager.openEdit(id);
+        window.readListManager = this.readListManager;
         window.cancelLinkEdit = (id) => this.linkManager.cancelEdit(id);
         window.saveLinkEdit = async (id) => {
             const card = document.querySelector(`.link-card[data-id="${id}"]`);
@@ -160,10 +165,11 @@ class PersonalHomeApp {
         // 키보드 단축키
         document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
 
-        // 태그 필터 이벤트 위임
+        // 태그 필터 이벤트 위임 (자식 span 클릭 대응)
         document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('tag-filter')) {
-                this.handleTagFilter(e.target.dataset.tag);
+            const btn = e.target.closest && e.target.closest('button.tag-filter');
+            if (btn) {
+                this.handleTagFilter(btn.dataset.tag);
             }
         });
     }
@@ -789,9 +795,17 @@ class PersonalHomeApp {
         const container = document.getElementById('tagFilters');
         if (!container) return;
 
-        const allTags = this.linkManager.getAllTags();
+        let allTags = this.linkManager.getAllTags();
+        const savedOrder = this.storageManager.load('tagOrder', null);
+        if (Array.isArray(savedOrder) && savedOrder.length) {
+            const set = new Set(allTags);
+            const ordered = savedOrder.filter(t => set.has(t));
+            const leftover = allTags.filter(t => !savedOrder.includes(t));
+            allTags = [...ordered, ...leftover];
+        }
         const stats = this.linkManager.getStats();
         const counts = stats.tagStats || {};
+        const recentCount = (this.linkManager.links || []).filter(l => !!l.lastClicked).length;
         const currentFilter = this.linkManager.currentFilter;
         const defaultTag = this.getDefaultTag();
 
@@ -799,9 +813,9 @@ class PersonalHomeApp {
             const isHierarchical = tag.includes(' > ');
             const isActive = tag === currentFilter;
             const isDefault = tag === defaultTag;
-            const displayName = tag === 'all' ? '전체' : tag;
+            const displayName = tag === 'all' ? '전체' : tag === 'recent' ? '최근' : tag;
 
-            const count = counts[tag] || 0;
+            const count = tag === 'all' ? stats.totalLinks : tag === 'recent' ? recentCount : (counts[tag] || 0);
             return `
                 <button class="tag-filter ${isActive ? 'active' : ''} ${isHierarchical ? 'hierarchical' : ''} ${isDefault ? 'default' : ''}"
                         data-tag="${tag}"
@@ -810,6 +824,35 @@ class PersonalHomeApp {
                 </button>
             `;
         }).join('');
+
+        // 드래그앤드랍 정렬
+        const buttons = container.querySelectorAll('button.tag-filter');
+        buttons.forEach(btn => {
+            btn.draggable = true;
+            btn.addEventListener('dragstart', (e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', btn.dataset.tag);
+                btn.classList.add('dragging');
+            });
+            btn.addEventListener('dragend', () => btn.classList.remove('dragging'));
+        });
+
+        container.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const dragging = container.querySelector('button.tag-filter.dragging');
+            if (!dragging) return;
+            const after = Array.from(container.querySelectorAll('button.tag-filter:not(.dragging)'))
+                .find(el => {
+                    const rect = el.getBoundingClientRect();
+                    return e.clientX < rect.left + rect.width / 2;
+                });
+            if (after) container.insertBefore(dragging, after); else container.appendChild(dragging);
+        });
+
+        container.addEventListener('drop', () => {
+            const order = Array.from(container.querySelectorAll('button.tag-filter')).map(b => b.dataset.tag);
+            this.storageManager.save('tagOrder', order);
+        });
     }
 
     /**
@@ -829,12 +872,8 @@ class PersonalHomeApp {
      * 현재 시간대에 따른 기본 태그 반환
      */
     getDefaultTag() {
-        const now = new Date();
-        const day = now.getDay(); // 0=Sun, 1=Mon, ...
-        const hour = now.getHours();
-        const isWeekday = day >= 1 && day <= 5;
-        const isWorkHour = hour >= 9 && hour < 18;
-        return (isWeekday && isWorkHour) ? '깃헙' : null;
+        // 기본 탭을 'recent'로 고정
+        return 'recent';
     }
 
     /**
@@ -916,7 +955,14 @@ window.deleteLink = (id) => {
 
 window.trackClick = (id) => {
     if (window.personalHomeApp?.linkManager) {
-        window.personalHomeApp.linkManager.trackClick(id);
+        const app = window.personalHomeApp;
+        const wasFilter = app.linkManager.currentFilter;
+        app.linkManager.trackClick(id);
+        // 최근 탭이면 즉시 리스트 갱신, 탭 카운트도 갱신
+        if (wasFilter === 'recent') {
+            app.linkManager.render();
+        }
+        app.renderTagFilters();
     }
 };
 

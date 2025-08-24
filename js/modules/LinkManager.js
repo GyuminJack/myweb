@@ -6,9 +6,11 @@ export class LinkManager {
     constructor(storageManager) {
         this.storage = storageManager;
         this.links = [];
-        this.currentFilter = 'all';
+        this.currentFilter = 'recent';
         this.draggedElement = null;
         this.container = null;
+        this.clickMeta = {};
+        this.metaStorageKey = 'linkClickMeta';
     }
 
     /**
@@ -30,6 +32,8 @@ export class LinkManager {
      */
     loadLinks() {
         this.links = this.storage.load('links', []);
+        this.loadClickMeta();
+        this.applyClickMetaToLinks();
     }
 
     /**
@@ -37,6 +41,30 @@ export class LinkManager {
      */
     saveLinks() {
         this.storage.save('links', this.links);
+    }
+
+    loadClickMeta() {
+        const meta = this.storage.load(this.metaStorageKey, {});
+        this.clickMeta = meta && typeof meta === 'object' ? meta : {};
+    }
+
+    saveClickMeta() {
+        this.storage.save(this.metaStorageKey, this.clickMeta);
+    }
+
+    applyClickMetaToLinks() {
+        if (!Array.isArray(this.links)) return;
+        for (const link of this.links) {
+            try {
+                const urlKey = String(link.url || '').trim().toLowerCase();
+                if (!urlKey) continue;
+                const meta = this.clickMeta[urlKey];
+                if (meta) {
+                    link.clickCount = meta.clickCount || 0;
+                    link.lastClicked = meta.lastClicked || null;
+                }
+            } catch (_) {}
+        }
     }
 
     /**
@@ -69,6 +97,9 @@ export class LinkManager {
         });
 
         this.links = normalized;
+        // 병합: 저장된 클릭 메타데이터 적용
+        this.loadClickMeta();
+        this.applyClickMetaToLinks();
         this.saveLinks();
         return this.links.length;
     }
@@ -140,6 +171,14 @@ export class LinkManager {
         if (link) {
             link.clickCount = (link.clickCount || 0) + 1;
             link.lastClicked = new Date().toISOString();
+            const urlKey = String(link.url || '').trim().toLowerCase();
+            if (urlKey) {
+                this.clickMeta[urlKey] = {
+                    clickCount: link.clickCount,
+                    lastClicked: link.lastClicked
+                };
+                this.saveClickMeta();
+            }
             this.saveLinks();
         }
     }
@@ -151,6 +190,13 @@ export class LinkManager {
      */
     getFilteredLinks(filter = this.currentFilter) {
         let filteredLinks = [...this.links];
+
+        if (filter === 'recent') {
+            filteredLinks = filteredLinks
+                .filter(link => !!link.lastClicked)
+                .sort((a, b) => new Date(b.lastClicked) - new Date(a.lastClicked));
+            return filteredLinks;
+        }
 
         if (filter !== 'all') {
             filteredLinks = filteredLinks.filter(link =>
@@ -188,7 +234,7 @@ export class LinkManager {
         // 일반 태그 정렬
         simpleTags.sort();
 
-        return ['all', ...simpleTags, ...hierarchicalTags];
+        return ['all', 'recent', ...simpleTags, ...hierarchicalTags];
     }
 
     /**

@@ -58,6 +58,16 @@ function getMemoFilePath() {
 }
 
 /**
+ * 읽을거리 파일 경로 반환 (.myread)
+ */
+function getReadFilePath() {
+    const envPath = process.env.READ_PATH;
+    if (envPath) return envPath;
+    const baseDir = path.dirname(currentRcPath);
+    return path.join(baseDir, '.myread');
+}
+
+/**
  * RC 파일 파싱
  * @param {string} content - RC 파일 내용
  * @returns {Array} 파싱된 링크 배열
@@ -445,6 +455,182 @@ app.post('/api/memos', async (req, res) => {
     } catch (error) {
         console.error('메모 저장 오류:', error);
         res.status(500).json({ error: '메모 저장 중 오류가 발생했습니다', details: error.message });
+    }
+});
+
+/**
+ * 읽을거리(.myread): 파일에서 로드 (CSV: name,url,status)
+ */
+app.get('/api/read', async (req, res) => {
+    try {
+        const readPath = getReadFilePath();
+        await ensureFileExists(readPath, '');
+        const content = await fs.readFile(readPath, 'utf-8');
+        const lines = content.split('\n');
+        const items = [];
+        lines.forEach((line, index) => {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) return;
+            const parts = trimmed.split(',').map(p => p.trim());
+            if (parts.length >= 2) {
+                const name = parts[0];
+                const url = parts[1];
+                const status = (parts[2] || 'unread').toLowerCase() === 'read' ? 'read' : 'unread';
+                items.push({ id: `read_${index}_${Date.now()}`, name, url: normalizeUrl(url), status });
+            }
+        });
+        res.json({ success: true, path: readPath, items });
+    } catch (error) {
+        console.error('읽을거리 로드 오류:', error);
+        res.status(500).json({ error: '읽을거리를 불러오는 중 오류가 발생했습니다', details: error.message });
+    }
+});
+
+/**
+ * 읽을거리(.myread): 파일 저장 (전체 덮어쓰기)
+ * body: { content?: string, items?: Array<{name,url,status}> }
+ */
+app.post('/api/read', async (req, res) => {
+    try {
+        const { content, items } = req.body || {};
+        const readPath = getReadFilePath();
+        const dir = path.dirname(readPath);
+        await fs.mkdir(dir, { recursive: true });
+
+        let toWrite = '';
+        if (typeof content === 'string') {
+            toWrite = content;
+        } else if (Array.isArray(items)) {
+            const lines = items
+                .filter(it => it && it.name && it.url)
+                .map(it => {
+                    const safeName = String(it.name).replace(/,/g, ' ').trim();
+                    const url = normalizeUrl(String(it.url).trim());
+                    const status = (it.status || 'unread').toLowerCase() === 'read' ? 'read' : 'unread';
+                    return [safeName, url, status].join(',');
+                });
+            toWrite = lines.join('\n') + (lines.length ? '\n' : '');
+        }
+
+        await fs.writeFile(readPath, toWrite, 'utf-8');
+        res.json({ success: true, path: readPath });
+    } catch (error) {
+        console.error('읽을거리 저장 오류:', error);
+        res.status(500).json({ error: '읽을거리 저장 중 오류가 발생했습니다', details: error.message });
+    }
+});
+
+/**
+ * 읽을거리(.myread): 항목 추가 (append, 중복 URL 무시)
+ * body: { items: Array<{name,url,status?}> }
+ */
+app.post('/api/read/append', async (req, res) => {
+    try {
+        const { items = [] } = req.body || {};
+        const readPath = getReadFilePath();
+
+        let existing = '';
+        try {
+            existing = await fs.readFile(readPath, 'utf-8');
+        } catch {}
+
+        const existingUrls = new Set(
+            existing
+                .split('\n')
+                .map(l => l.trim())
+                .filter(Boolean)
+                .map(l => l.split(',')[1] || '')
+                .map(u => u.trim().toLowerCase())
+        );
+
+        const newLines = [];
+        for (const it of items) {
+            if (!it || !it.name || !it.url) continue;
+            const urlNorm = normalizeUrl(String(it.url).trim());
+            const urlKey = urlNorm.toLowerCase();
+            if (existingUrls.has(urlKey)) continue;
+            const safeName = String(it.name).replace(/,/g, ' ').trim();
+            const status = (it.status || 'unread').toLowerCase() === 'read' ? 'read' : 'unread';
+            newLines.push([safeName, urlNorm, status].join(','));
+            existingUrls.add(urlKey);
+        }
+
+        const dir = path.dirname(readPath);
+        await fs.mkdir(dir, { recursive: true });
+
+        const needsNewline = existing.length > 0 && !existing.endsWith('\n');
+        const toAppend = (needsNewline ? '\n' : '') + newLines.join('\n') + (newLines.length ? '\n' : '');
+        await fs.appendFile(readPath, toAppend, 'utf-8');
+
+        res.json({ success: true, path: readPath, added: newLines.length });
+    } catch (error) {
+        console.error('읽을거리 append 오류:', error);
+        res.status(500).json({ error: '읽을거리 추가 중 오류가 발생했습니다', details: error.message });
+    }
+});
+
+/**
+ * 읽을거리(.myread): 상태 변경 (read/unread)
+ * body: { url: string, status: 'read'|'unread' }
+ */
+app.post('/api/read/status', async (req, res) => {
+    try {
+        const { url, status } = req.body || {};
+        if (!url || !status) return res.status(400).json({ error: 'url과 status가 필요합니다' });
+        const readPath = getReadFilePath();
+        await ensureFileExists(readPath, '');
+        const content = await fs.readFile(readPath, 'utf-8');
+        const lines = content.split('\n');
+        const target = normalizeUrl(String(url).trim());
+        const normalizedStatus = status.toLowerCase() === 'read' ? 'read' : 'unread';
+        const updated = lines.map(line => {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) return line;
+            const parts = trimmed.split(',');
+            if (parts.length < 2) return line;
+            const urlPart = parts[1] ? parts[1].trim() : '';
+            if (normalizeUrl(urlPart) === target) {
+                const name = String(parts[0] || '').trim().replace(/,/g, ' ');
+                return [name, target, normalizedStatus].join(',');
+            }
+            return line;
+        }).join('\n');
+
+        await fs.writeFile(readPath, updated, 'utf-8');
+        res.json({ success: true, path: readPath });
+    } catch (error) {
+        console.error('읽을거리 상태 변경 오류:', error);
+        res.status(500).json({ error: '상태 변경 중 오류가 발생했습니다', details: error.message });
+    }
+});
+
+/**
+ * 읽을거리(.myread): 항목 삭제
+ * body: { url: string }
+ */
+app.post('/api/read/delete', async (req, res) => {
+    try {
+        const { url } = req.body || {};
+        if (!url) return res.status(400).json({ error: 'url이 필요합니다' });
+        const readPath = getReadFilePath();
+        await ensureFileExists(readPath, '');
+        const content = await fs.readFile(readPath, 'utf-8');
+        const target = normalizeUrl(String(url).trim());
+        const lines = content.split('\n');
+        const filtered = lines.filter(line => {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) return true;
+            const parts = trimmed.split(',');
+            if (parts.length < 2) return true;
+            const urlPart = parts[1] ? parts[1].trim() : '';
+            return normalizeUrl(urlPart) !== target;
+        }).join('\n');
+
+        await fs.writeFile(readPath, filtered, 'utf-8');
+        res.json({ success: true, path: readPath });
+    } catch (error) {
+        console.error('읽을거리 삭제 오류:', error);
+        res.status(500).json({ error: '삭제 중 오류가 발생했습니다', details: error.message });
     }
 });
 
